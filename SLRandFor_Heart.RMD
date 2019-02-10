@@ -1,0 +1,778 @@
+```{r}
+setwd("C:/Users/Dan/Downloads/MLsets")
+library(randomForest)
+library(plyr)
+library(caret)
+
+a=read.csv("heart.csv")
+
+
+b=subset(a,select=-c(target))
+
+
+
+a$target=as.factor(a$target)
+
+numb=a
+numb$target=as.numeric(numb$target)
+
+all1=subset(numb,target==2)
+all0=subset(numb,target==1)
+
+negsamp=sample(seq_len(nrow(all0)), size = 0.3*nrow(all0))
+neg=all0[negsamp,]
+
+upreg=rbind(neg,all1)
+
+
+```
+
+```{r}
+mod=randomForest(target~.,data=a)
+```
+
+
+```{r}
+#break data into training and test sets
+
+size <- floor(0.9 * nrow(a))
+trainrows=sample(seq_len(nrow(a)), size = size)
+
+train=a[trainrows,]
+test=a[-trainrows,]
+testlabs=test$target
+testlabs=as.numeric(testlabs)-1
+striptest=subset(test,select=-c(target))
+```
+
+
+
+```{r}
+library(rpart)
+
+# grow tree 
+fit <- rpart(target ~ .,
+             method="class", data=train)
+
+
+#make predictions with model
+preds=predict(fit,newdata=striptest,type="class")
+preds=as.numeric(preds)-1
+
+results=(preds==testlabs)
+b=count(results)
+acc=mean(results)
+
+
+
+```
+
+
+
+
+
+
+```{r}
+#import library for decision tree
+
+library(rpart)
+
+portions=c()
+accs=c()
+pospreds=c()
+negpreds=c()
+traccs=c()
+
+training_portions=c(0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9)
+
+for (i in 1:length(training_portions)){
+  size <- floor(training_portions[i] * nrow(a))
+  trainrows=sample(seq_len(nrow(a)), size = size)
+  
+  train=a[trainrows,]
+  test=a[-trainrows,]
+  testlabs=test$target
+  testlabs=as.numeric(testlabs)-1
+  trlabs=train$target
+  trlabs=as.numeric(trlabs)-1
+  
+  #strip labels off sets for use in predictions
+  striptest=subset(test,select=-c(target))
+  striptrain=subset(train,select=-c(target))
+  
+  striptrain=subset(train,select=-c(target))
+  
+  # create decision tree model
+  fit = rpart(target ~ .,
+              method="class", data=train)
+  
+  
+  #make predictions with model
+  preds=predict(fit,newdata=striptest,type="class")
+  preds=as.numeric(preds)-1
+  trpreds=predict(fit,newdata=striptrain,type="class")
+  trpreds=as.numeric(trpreds)-1
+  
+  
+  results=(preds==testlabs)
+  b=count(results)
+  acc=mean(results)  
+  
+  tresults=(trpreds==trlabs)
+  tracc=mean(tresults)
+  
+  conf=confusionMatrix(factor(preds),factor(testlabs))
+  df=as.data.frame(conf[4])
+  pospred=df[3,]
+  negpred=df[4,]
+  
+  
+  portions=append(portions,training_portions[i])
+  accs=append(accs,acc)
+  traccs=append(traccs,tracc)
+  pospreds=append(pospreds,pospred)
+  negpreds=append(negpreds,negpred)
+  
+}
+
+conf=confusionMatrix(factor(preds),factor(testlabs))
+final=cbind(accs,traccs,pospreds,negpreds,portions)
+write.csv(final,file="C:/Users/Dan/Downloads/MLsets/Heart_Data/DT_unpruned.csv")
+
+
+```
+
+
+```{r}
+#import library for decision tree
+
+library(rpart)
+
+portions=c()
+accs=c()
+pospreds=c()
+negpreds=c()
+traccs=c()
+
+training_portions=c(0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9)
+
+for (i in 1:length(training_portions)){
+  size <- floor(training_portions[i] * nrow(a))
+  trainrows=sample(seq_len(nrow(a)), size = size)
+  
+  train=a[trainrows,]
+  test=a[-trainrows,]
+  testlabs=test$target
+  testlabs=as.numeric(testlabs)-1
+  trlabs=train$target
+  trlabs=as.numeric(trlabs)-1
+  
+  #strip labels off sets for use in predictions
+  striptest=subset(test,select=-c(target))
+  striptrain=subset(train,select=-c(target))
+  
+  striptrain=subset(train,select=-c(target))
+  
+  # create decision tree model
+  fit = rpart(target ~ .,
+              method="class", data=train)
+  
+  pruned= prune(fit, cp=fit$cptable[which.min(fit$cptable[,"xerror"]),"CP"])
+  
+  
+  #make predictions with model
+  preds=predict(pruned,newdata=striptest,type="class")
+  preds=as.numeric(preds)-1
+  trpreds=predict(pruned,newdata=striptrain,type="class")
+  trpreds=as.numeric(trpreds)-1
+  
+  
+  results=(preds==testlabs)
+  b=count(results)
+  acc=mean(results)  
+  
+  tresults=(trpreds==trlabs)
+  tracc=mean(tresults)
+  
+  conf=confusionMatrix(factor(preds),factor(testlabs))
+  df=as.data.frame(conf[4])
+  pospred=df[3,]
+  negpred=df[4,]
+  
+  
+  portions=append(portions,training_portions[i])
+  accs=append(accs,acc)
+  traccs=append(traccs,tracc)
+  pospreds=append(pospreds,pospred)
+  negpreds=append(negpreds,negpred)
+  
+}
+
+conf=confusionMatrix(factor(preds),factor(testlabs))
+final=cbind(accs,traccs,pospreds,negpreds,portions)
+write.csv(final,file="C:/Users/Dan/Downloads/MLsets/Heart_Data/DT_pruned.csv")
+
+```
+
+
+
+
+```{r}
+#make SVM model with radial kernel
+
+library(e1071)
+
+#a few values to be collected in the script 
+portions=c()
+accs=c()
+pospreds=c()
+negpreds=c()
+traccs=c()
+
+training_portions=c(0.1,0.2,0.30,0.4,0.5,0.6,0.7,.8)
+
+
+for (i in 1:length(training_portions)){
+  size <- floor(training_portions[i] * nrow(a))
+  trainrows=sample(seq_len(nrow(a)), size = size)
+  
+  train=a[trainrows,]
+  test=a[-trainrows,]
+  testlabs=test$target
+  testlabs=as.numeric(testlabs)-1
+  trlabs=train$target
+  trlabs=as.numeric(trlabs)-1
+  
+  #strip labels off sets for use in predictions
+  striptest=subset(test,select=-c(target))
+  striptrain=subset(train,select=-c(target))
+  
+  
+  # build model 
+  mod <- svm(target ~ .,
+             method="class", data=train,kernel="radial")
+  
+  
+  #make predictions with model
+  preds=predict(mod,newdata=striptest,type="class")
+  preds=as.numeric(preds)-1
+  
+  trpreds=predict(mod,newdata=striptrain,type="class")
+  trpreds=as.numeric(trpreds)-1
+  
+  results=(preds==testlabs)
+  b=count(results)
+  acc=mean(results)  
+  
+  tresults=(trpreds==trlabs)
+  tracc=mean(tresults)
+  
+  
+  
+  #extract predictive accuracies 
+  
+  conf=confusionMatrix(factor(preds),factor(testlabs))
+  df=as.data.frame(conf[4])
+  pospred=df[3,]
+  negpred=df[4,]
+  
+  portions=append(portions,training_portions[i])
+  accs=append(accs,acc)
+  
+  traccs=append(traccs,tracc)
+  pospreds=append(pospreds,pospred)
+  negpreds=append(negpreds,negpred)
+  
+}
+
+conf=confusionMatrix(factor(preds),factor(testlabs))
+final=cbind(accs,traccs,pospreds,negpreds,portions)
+write.csv(final,file="C:/Users/Dan/Downloads/MLsets/Heart_Data/SVM_radial.csv")
+
+```
+
+
+```{r}
+#make SVM model with sigmoid kernel
+
+library(e1071)
+
+#a few values to be collected in the script 
+portions=c()
+accs=c()
+pospreds=c()
+negpreds=c()
+traccs=c()
+
+training_portions=c(0.1,0.2,0.30,0.4,0.5,0.6,0.7,.8)
+
+
+for (i in 1:length(training_portions)){
+  size <- floor(training_portions[i] * nrow(a))
+  trainrows=sample(seq_len(nrow(a)), size = size)
+  
+  train=a[trainrows,]
+  test=a[-trainrows,]
+  testlabs=test$target
+  testlabs=as.numeric(testlabs)-1
+  trlabs=train$target
+  trlabs=as.numeric(trlabs)-1
+  
+  #strip labels off sets for use in predictions
+  striptest=subset(test,select=-c(target))
+  striptrain=subset(train,select=-c(target))
+  
+  
+  # build model 
+  mod <- svm(target ~ .,
+             method="class", data=train,kernel="sigmoid")
+  
+  
+  #make predictions with model
+  preds=predict(mod,newdata=striptest,type="class")
+  preds=as.numeric(preds)-1
+  
+  trpreds=predict(mod,newdata=striptrain,type="class")
+  trpreds=as.numeric(trpreds)-1
+  
+  results=(preds==testlabs)
+  b=count(results)
+  acc=mean(results)  
+  
+  tresults=(trpreds==trlabs)
+  tracc=mean(tresults)
+  
+  #extract predictive accuracies 
+  
+  conf=confusionMatrix(factor(preds),factor(testlabs))
+  df=as.data.frame(conf[4])
+  pospred=df[3,]
+  negpred=df[4,]
+  
+  portions=append(portions,training_portions[i])
+  accs=append(accs,acc)
+  
+  traccs=append(traccs,tracc)
+  pospreds=append(pospreds,pospred)
+  negpreds=append(negpreds,negpred)
+  
+}
+
+conf=confusionMatrix(factor(preds),factor(testlabs))
+final=cbind(accs,traccs,pospreds,negpreds,portions)
+write.csv(final,file="C:/Users/Dan/Downloads/MLsets/Heart_Data/SVM_sigmoid.csv")
+
+```
+
+
+
+```{r}
+#make knn trainer with a fixed value of k showing learning with portions of training data
+library(class)
+
+b=a
+portions=c()
+accs=c()
+pospreds=c()
+negpreds=c()
+traccs=c()
+
+training_portions=c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9)
+kval=c(1,5,10,20)
+
+for (i in 1:length(training_portions)){
+  size <- floor(training_portions[i]* nrow(a))
+  trainrows=sample(seq_len(nrow(a)), size = size)
+  
+  indx <- sapply(b, is.factor)
+  b[indx] <- lapply(b[indx], function(x) as.numeric((x)))
+  
+  train=b[trainrows,]
+  test=b[-trainrows,]
+  testlabs=test$target
+  testlabs=as.numeric(testlabs)-1
+  
+  trlabs=train$target
+  trlabs=as.numeric(trlabs)-1
+  
+  striptest=subset(test,select=-c(target))
+  striptrain=subset(train,select=-c(target))
+  
+  
+  
+  # build model 
+  mod=knn(striptrain,striptest,trlabs,k=20)
+  
+  trmod=knn(striptrain,striptrain,trlabs,k=20)
+  
+  #make predictions with model
+  preds=as.numeric(mod)-1
+  trpreds=as.numeric(trmod)-1
+  
+  match=(preds==testlabs)
+  acc=mean(match)
+  tracc=mean(trpreds)
+  
+  #extract pos and neg predictive value
+  
+  conf=confusionMatrix(factor(preds),factor(testlabs))
+  df=as.data.frame(conf[4])
+  pospred=df[3,]
+  negpred=df[4,]
+  
+  accs=append(accs,acc)
+  traccs=append(traccs,acc)
+  portions=append(portions,training_portions[i])
+  pospreds=append(pospreds,pospred)
+  negpreds=append(negpreds,negpred)
+  
+  match=(mod==test$target)
+  c=count(match)
+}
+conf=confusionMatrix(factor(preds),factor(testlabs))
+
+final=cbind(accs,traccs,pospreds,negpreds,portions)
+write.csv(final,file="C:/Users/Dan/Downloads/MLsets/Heart_Data/kNNproportions_results.csv")
+
+```
+
+```{r}
+#make knn trainer with a fixed k value portion and varying portions values
+library(class)
+
+portions=c()
+accs=c()
+pospreds=c()
+negpreds=c()
+kvals=c()
+
+b=a
+
+training_portions=c(0.05,0.2,0.3,0.4,0.5,0.6,0.7)
+kval=c(1,2,5,10,15,20)
+
+indx <- sapply(b, is.factor)
+b[indx] <- lapply(b[indx], function(x) as.numeric((x)))
+
+for (i in 1:length(kval)){
+  size <- floor(0.8*nrow(a))
+  trainrows=sample(seq_len(nrow(a)), size = size)
+  
+  train=b[trainrows,]
+  test=b[-trainrows,]
+  testlabs=test$target
+  testlabs=as.numeric(testlabs)-1
+  striptest=subset(test,select=-c(target))
+  
+  striptrain=subset(train,select=-c(target))
+  
+  # grow tree 
+  mod=knn(train,test,train$target,k=3)
+  
+  
+  #make predictions with model
+  preds=as.numeric(mod)-1
+  
+  match=(preds==testlabs)
+  acc=mean(match)
+  
+  
+  
+  accs=append(accs,acc)
+  
+  kvals=append(kvals,kval[i])
+  pospreds=append(pospreds,pospred)
+  negpreds=append(negpreds,negpred)
+  
+  match=(mod==test$target)
+  c=count(match)
+}
+
+final=cbind(accs,traccs,pospreds,negpreds,portions,kvals)
+write.csv(final,file="C:/Users/Dan/Downloads/MLsets/Heart_Data/kNN_kvals.csv")
+
+
+
+```
+
+
+```{r}
+#make boosted decision tree model
+library(fastAdaboost)
+
+final=c()
+portions=c()
+accs=c()
+pospreds=c()
+negpreds=c()
+traccs=c()
+
+training_portions=c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9)
+
+for (i in 1:length(training_portions)){
+  size <- floor(training_portions[i] * nrow(a))
+  trainrows=sample(seq_len(nrow(a)), size = size)
+  
+  train=a[trainrows,]
+  test=a[-trainrows,]
+  
+  testlabs=test$target
+  testlabs=as.numeric(testlabs)-1
+  
+  trainlabs=train$target
+  trainlabs=as.numeric(trainlabs)-1
+  
+  striptest=subset(test,select=-c(target))
+  striptrain=subset(train,select=-c(target))
+  
+  #generate model
+  mod <- adaboost(target ~ .,
+                  nIter=10, data=train)
+  
+  #make predictions with model
+  preds=predict(mod,newdata=striptest,type="class")
+  preds=as.factor(preds$class) 
+  preds=as.numeric(preds)-1
+  
+  trpreds=predict(mod,newdata=striptrain,type="class")
+  trpreds=as.factor(trpreds$class)
+  trpreds=as.numeric(preds)
+  
+  
+  results=(preds==testlabs)
+  tresults=(trpreds==trainlabs)
+  b=count(results)
+  acc=mean(results)  
+  tracc=mean(tresults)
+  conf=confusionMatrix(factor(preds),factor(testlabs))[2]
+  
+  
+  
+  conf=confusionMatrix(factor(preds),factor(testlabs))
+  df=as.data.frame(conf[4])
+  pospred=df[3,]
+  negpred=df[4,]
+  
+  portions=append(portions,training_portions[i])
+  accs=append(accs,acc)
+  traccs=append(traccs,tracc)
+  pospreds=append(pospreds,pospred)
+  negpreds=append(negpreds,negpred)
+  
+}
+final=cbind(accs,traccs,pospreds,negpreds,portions)
+write.csv(final,file="C:/Users/Dan/Downloads/MLsets/Heart_Data/Adaboost_results.csv")
+
+
+```
+
+```{r}
+library(adabag)
+
+#a few values to be collected in the script 
+portions=c()
+accs=c()
+pospreds=c()
+negpreds=c()
+traccs=c()
+
+training_portions=c(0.1,0.2,0.30,0.4,0.5,0.6,0.7,.8)
+
+
+for (i in 1:length(training_portions)){
+  size <- floor(training_portions[i] * nrow(a))
+  trainrows=sample(seq_len(nrow(a)), size = size)
+  
+  train=a[trainrows,]
+  test=a[-trainrows,]
+  testlabs=test$target
+  testlabs=as.numeric(testlabs)-1
+  trlabs=train$target
+  trlabs=as.numeric(trlabs)-1
+  
+  #strip labels off sets for use in predictions
+  striptest=subset(test,select=-c(target))
+  striptrain=subset(train,select=-c(target))
+  
+  
+  # build model 
+  mod <- boosting(target ~ ., data=train,boos=TRUE,mfinal=20,coeflearn='Breiman')
+  
+  
+  #make predictions with model
+  preds=predict(mod,newdata=striptest,type="class")
+  preds=as.factor(preds$class)
+  preds=as.numeric(preds)-1
+  
+  trpreds=predict(mod,newdata=striptrain,type="class")
+  trpreds=as.factor(trpreds$class)
+  trpreds=as.numeric(trpreds)-1
+  
+  results=(preds==testlabs)
+  b=count(results)
+  acc=mean(results)  
+  
+  tresults=(trpreds==trlabs)
+  tracc=mean(tresults)
+  
+  #extract predictive accuracies 
+  
+  conf=confusionMatrix(factor(preds),factor(testlabs))
+  df=as.data.frame(conf[4])
+  pospred=df[3,]
+  negpred=df[4,]
+  
+  portions=append(portions,training_portions[i])
+  accs=append(accs,acc)
+  
+  traccs=append(traccs,tracc)
+  pospreds=append(pospreds,pospred)
+  negpreds=append(negpreds,negpred)
+  
+}
+
+conf=confusionMatrix(factor(preds),factor(testlabs))
+final=cbind(accs,traccs,pospreds,negpreds,portions)
+write.csv(final,file="C:/Users/Dan/Downloads/MLsets/Heart_Data/adabag_pruned.csv")
+
+
+```
+
+```{r}
+#build neural network model
+library(nnet)
+
+portions=c()
+accs=c()
+pospreds=c()
+negpreds=c()
+traccs=c()
+
+training_portions=c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9)
+
+for (i in 1:length(training_portions)){
+  size <- floor(training_portions[i] * nrow(upreg))
+  trainrows=sample(seq_len(nrow(upreg)), size = size)
+  
+  
+  #calls on upregulated signal data
+  train=a[trainrows,]
+  test=a[-trainrows,]
+  testlabs=test$target
+  testlabs=as.numeric(testlabs)-1
+  trlabs=train$target
+  trlabs=as.numeric(trlabs)-1
+  
+  striptest=subset(test,select=-c(target))
+  
+  striptrain=subset(train,select=-c(target))
+  
+  #generate model
+  mod <- nnet(target ~ .,
+              size=18,rang=1,decay=0.00001,maxit=1000, data=train,type="class")
+  
+  #make predictions with model
+  preds=predict(mod,newdata=striptest,type="class")
+  preds=as.factor(preds)
+  preds=as.numeric(preds)-1
+  
+  trpreds=predict(mod,newdata=striptrain,type="class")
+  trpreds=as.factor(trpreds)
+  trpreds=as.numeric(trpreds)-1
+  
+  results=(preds==testlabs)
+  b=count(results)
+  acc=mean(results)  
+  
+  tresults=(trpreds==trlabs)
+  tracc=mean(tresults)
+  
+  conf=confusionMatrix(factor(preds),factor(testlabs))
+  df=as.data.frame(conf[4])
+  pospred=df[3,]
+  negpred=df[4,]
+  
+  portions=append(portions,training_portions[i])
+  accs=append(accs,acc)
+  traccs=append(traccs,tracc)
+  pospreds=append(pospreds,pospred)
+  negpreds=append(negpreds,negpred)
+  
+}
+
+conf=confusionMatrix(factor(preds),factor(testlabs))
+
+final=cbind(accs,traccs,pospreds,negpreds,portions)
+write.csv(final,file="C:/Users/Dan/Downloads/MLsets/Heart_Data/NN_results_noreg.csv")
+```
+
+
+
+```{r}
+#build neural network model
+library(nnet)
+
+portions=c()
+accs=c()
+pospreds=c()
+negpreds=c()
+traccs=c()
+
+training_portions=c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9)
+
+for (i in 1:length(training_portions)){
+  size <- floor(training_portions[i] * nrow(upreg))
+  trainrows=sample(seq_len(nrow(upreg)), size = size)
+  
+  
+  #calls on upregulated signal data
+  train=upreg[trainrows,]
+  test=upreg[-trainrows,]
+  testlabs=test$target
+  testlabs=as.numeric(testlabs)-1
+  trlabs=train$target
+  trlabs=as.numeric(trlabs)-1
+  
+  striptest=subset(test,select=-c(target))
+  
+  striptrain=subset(train,select=-c(target))
+  
+  #generate model
+  mod = nnet(as.factor(target) ~ .,
+              size=18,rang=0.5,decay=0,maxit=500, data=train,type="class")
+  
+  #make predictions with model
+  preds=predict(mod,newdata=striptest,type="class")
+  preds=as.factor(preds)
+  preds=as.numeric(preds)-1
+  
+  trpreds=predict(mod,newdata=striptrain,type="class")
+  trpreds=as.factor(trpreds)
+  trpreds=as.numeric(trpreds)-1
+  
+  results=(preds==testlabs)
+  b=count(results)
+  acc=mean(results)  
+  
+  tresults=(trpreds==trlabs)
+  tracc=mean(tresults)
+  
+  conf=confusionMatrix(factor(preds),factor(testlabs))
+  df=as.data.frame(conf[4])
+  pospred=df[3,]
+  negpred=df[4,]
+  
+  portions=append(portions,training_portions[i])
+  accs=append(accs,acc)
+  traccs=append(traccs,tracc)
+  pospreds=append(pospreds,pospred)
+  negpreds=append(negpreds,negpred)
+  
+}
+
+conf=confusionMatrix(factor(preds),factor(testlabs))
+
+final=cbind(accs,traccs,pospreds,negpreds,portions)
+write.csv(final,file="C:/Users/Dan/Downloads/MLsets/Heart_Data/NN_results_upreg.csv")
+
+```
